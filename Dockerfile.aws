@@ -20,7 +20,7 @@ RUN ls -la ${TEMP_DIR}/misc/prerequisites.sh
 # COPY ./misc/prerequisites.sh   /opt/ome/misc/prerequisites2.sh
 ARG DEBIAN_FRONTEND=noninteractive
 ENV TZ=Asia/Bangkok
-RUN     apt-get update && apt-get install -y tzdata sudo curl libnvidia-compute-470-server pkgconf
+RUN     apt-get update && apt-get install -y tzdata sudo curl  pkgconf
 
 RUN pkgconf --list-all | grep  cuvid
 
