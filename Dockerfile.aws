@@ -1,0 +1,65 @@
+# syntax = docker/dockerfile:experimental
+
+FROM  nvidia/cuda:11.4.1-devel-ubuntu20.04
+
+
+COPY ./  /opt/ome/
+
+ENV TEMP_DIR=/opt/ome
+ENV PREFIX=/opt/ovenmediaengine
+ENV NVIDIA_VISIBLE_DEVICES=all
+ENV NVIDIA_DRIVER_CAPABILITIES=video,compute,utility
+ENV NVIDIA_REQUIRE_CUDA="cuda>=11.3 brand=tesla,driver>=418,driver<419 brand=tesla,driver>=440,driver<441 driver>=450"
+ENV NCCL_VERSION=2.9.6
+
+RUN ls -la ${TEMP_DIR}
+RUN ls -la ${TEMP_DIR}/misc/
+RUN ls -la ${TEMP_DIR}/misc/prerequisites.sh 
+
+
+# COPY ./misc/prerequisites.sh   /opt/ome/misc/prerequisites2.sh
+ARG DEBIAN_FRONTEND=noninteractive
+ENV TZ=Asia/Bangkok
+RUN     apt-get update && apt-get install -y tzdata sudo curl libnvidia-compute-470-server pkgconf
+
+RUN pkgconf --list-all | grep  cuvid
+
+RUN find / -name *cuvid*
+
+
+RUN  /opt/ome/misc/prerequisites.sh  --enable-nvc
+
+RUN NVCC_HEADERS=11.0.10.1 \
+        DIR=/tmp/nvcc-hdr && \
+        mkdir -p ${DIR} && \
+        cd ${DIR} && \
+        curl -sLf https://github.com/FFmpeg/nv-codec-headers/releases/download/n${NVCC_HEADERS}/nv-codec-headers-${NVCC_HEADERS}.tar.gz | tar -xz --strip-components=1 && sed -i 's|PREFIX.*=\(.*\)|PREFIX =|g' Makefile && \
+        make install && \
+        rm -rf ${DIR} 
+
+RUN \
+        cd ${TEMP_DIR}/src && \
+        make release -j$(nproc)
+
+RUN \
+        if [ "$STRIP" = "TRUE" ] ; then strip ${TEMP_DIR}/src/bin/RELEASE/OvenMediaEngine ; fi
+
+## Make running environment
+RUN \
+        cd ${TEMP_DIR}/src && \
+        mkdir -p ${PREFIX}/bin/origin_conf && \
+        mkdir -p ${PREFIX}/bin/edge_conf && \
+        cp ./bin/RELEASE/OvenMediaEngine ${PREFIX}/bin/ && \
+        cp ../misc/conf_examples/Origin.xml ${PREFIX}/bin/origin_conf/Server.xml && \
+        cp ../misc/conf_examples/Logger.xml ${PREFIX}/bin/origin_conf/Logger.xml && \
+        cp ../misc/conf_examples/Edge.xml ${PREFIX}/bin/edge_conf/Server.xml && \
+        cp ../misc/conf_examples/Logger.xml ${PREFIX}/bin/edge_conf/Logger.xml && \
+        rm -rf ${DIR}
+ 
+
+WORKDIR         /opt/ovenmediaengine/bin
+EXPOSE          80/tcp 8080/tcp 8090/tcp 1935/tcp 3333/tcp 3334/tcp 4000-4005/udp 10000-10010/udp 9000/tcp
+# COPY            --from=build /opt/ovenmediaengine /opt/ovenmediaengine
+# Default run as Origin mode
+CMD             ["/opt/ovenmediaengine/bin/OvenMediaEngine", "-c", "origin_conf"]
+
